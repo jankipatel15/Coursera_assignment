@@ -1,0 +1,67 @@
+import dash
+from dash import dcc
+from dash import html
+from dash.dependencies import Input, Output
+import pandas as pd
+import plotly.graph_objs as go
+import plotly.express as px
+
+# Load the data using pandas
+data = pd.read_csv('https://cf-courses-data.s3.us.cloud-object-storage.appdomain.cloud/IBMDeveloperSkillsNetwork-DV0101EN-SkillsNetwork/Data%20Files/historical_automobile_sales.csv')
+year_list = [i for i in range(1980, 2024, 1)]
+# Initialize the Dash app
+app = dash.Dash(__name__)
+
+app.layout = html.Div([
+    #TASK 2.1 Add title to the dashboard
+    html.H1("Automatic Statistics Dashboard", style={'textAlign': 'center', 'color': '#503D36', 'font-size': 24}),
+        html.Div([html.Label('Select Statistics:'),
+        dcc.Dropdown(id='dropdown-statistics',options=[{'label':'Yearly Statistics','value':'Yearly Statistics'},
+                                                    {'label':'Recession Period Statistics','value':'Recession Period Statistics'}
+                                                    ],
+                                                    value='Select Statistics',
+                                        placeholder='Select a report type',
+                                        style={'font-size':'20px','text-align':'center','padding':'3px','width':'80%'}),
+        dcc.Dropdown(id='select-year',options=[{'label':i,'value':i} for i in year_list],placeholder='Select Year',style={'font-size':'20px','text-align':'center','padding':'3px','width':'40%'},value='Select Year')])
+,        html.Div([html.Div(id='output-container', className='chart-grid', style={'display': 'flex'})
+])
+])
+@app.callback(Output(component_id='select-year',component_property='disabled'),
+                Input(component_id='dropdown-statistics',component_property='value'))
+def update_input_container(selected_Statistics): 
+    if selected_Statistics=='Yearly Statistics':
+        return False
+    else:
+        return True
+@app.callback(
+    Output(component_id='output-container', component_property='children'),
+    [Input(component_id='select-year', component_property='value'), 
+    Input(component_id='dropdown-statistics', component_property='value')])
+def update_output_container(selected_Statistics,input_year):
+    if selected_Statistics=='Recession Period Statistics':
+        recession_data=data[data['Recession']==1]
+    elif (input_year and selected_Statistics=='Yearly Statistics'):
+        yearly_data=data[data['Year']==input_year]
+        yearly_rec=recession_data.groupby('Year')['Automobile_Sales'].mean().reset_index()
+        R_chart1=dcc.Graph(figure=px.line(yearly_rec,x='Year',y='Average number of Autombile Sales',
+title='Average number of Automobile Sales during recession'))
+        vehicle_sold=recession_data.groupby(['Year','Vehicle_Type'])['Automobile_Sales'].mean().reset_index()
+        R_chart2=dcc.Graph(figure=px.bar(vehicle_sold,x='Year',y='Average number of Vehilcle sold',
+title='Average number of vehicles sold by vehicle type'))
+        exp_rec= recession_data.groupby('Vehicle_Type')['Advertising_Expenditure'].sum().reset_index()
+        R_chart3 = dcc.Graph(
+                    figure=px.pie(exp_rec,values='Advertising_expenditure',names='Vehicle_type',
+                 title="Average expenditure by Vehicle Type"
+                )
+        )
+        df_1=recession_data.groupby(['Unemployment_Rate','Vehicle_Type'])['Automobile_Sales'].mean().reset_index()
+        R_chart4=dcc.Graph(figure=px.bar(df_1, 
+                x=df_1['Unemployment_Rate'],
+                y=df_1['Automobile_Sales'],
+                color='Vehicle_Type',
+                title="Unemployment rate on vehicle type and sales"))
+        return[html.Div(className='chart-grid', children=[html.Div(children=R_chart1),html.Div(children=R_chart2)]),
+            html.Div(className='chart-grid', children=[html.Div(children=R_chart3),html.Div(children=R_chart4)])
+            ]  
+if __name__ == '__main__':
+    app.run_server()
